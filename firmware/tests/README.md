@@ -17,9 +17,14 @@ done
 ```powershell
 # Windows — run PowerShell as Administrator
 cd firmware\tests
+
+$target = Resolve-Path "..\arduino\src"
 Get-ChildItem -Directory -Filter "test_*" | ForEach-Object {
-    $target = Resolve-Path "..\..\arduino\src"
-    New-Item -ItemType Junction -Path "$($_.FullName)\src" -Target $target -Force
+    $link = Join-Path $_.FullName "src"
+    if (Test-Path $link) {
+        Remove-Item $link -Force
+    }
+    New-Item -ItemType Junction -Path $link -Target $target
 }
 ```
 
