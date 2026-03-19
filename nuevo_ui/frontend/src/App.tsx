@@ -227,7 +227,7 @@ function Dashboard() {
           </div>
 
           {/* Expandable Modules */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-[1600px] mx-auto">
+          {/* <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-[1600px] mx-auto">
             <div className="space-y-4">
               <h3 className="text-lg font-semibold text-white mb-3">Qwiic Modules</h3>
               <AnimatePresence>
@@ -257,8 +257,13 @@ function Dashboard() {
             </div>
 
             <div className="hidden xl:block" />
-          </div>
+          </div> */}
         </div>
+
+        {/* Footer */}
+        <footer className="mt-8 pb-8 text-center text-white/30 text-xs space-y-1">
+          <p>NUEVO UI · MAE 162 · UCLA · 2026</p>
+        </footer>
       </div>
 
       {/* User management modal */}

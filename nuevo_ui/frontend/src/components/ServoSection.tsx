@@ -108,29 +108,24 @@ export function ServoSection() {
             <ChevronDown className="size-4 text-white/70 group-hover:text-white transition-colors" />
           </div>
 
-          {/* Status indicators — 2 rows of 8 */}
-          <div className="grid grid-cols-8 gap-1.5 mb-3">
-            {Array.from({ length: 8 }, (_, i) => i + 1).map((ch) => (
-              <div
-                key={ch}
-                className={`h-2 rounded-full ${
-                  getChannelEnabled(ch)
-                    ? 'bg-emerald-400 shadow-lg shadow-emerald-400/50'
-                    : 'bg-white/20'
-                } transition-all`}
-              />
-            ))}
-          </div>
-          <div className="grid grid-cols-8 gap-1.5 mb-3">
-            {Array.from({ length: 8 }, (_, i) => i + 9).map((ch) => (
-              <div
-                key={ch}
-                className={`h-2 rounded-full ${
-                  getChannelEnabled(ch)
-                    ? 'bg-emerald-400 shadow-lg shadow-emerald-400/50'
-                    : 'bg-white/20'
-                } transition-all`}
-              />
+          {/* Status indicators — 4 groups of 4 vertical bars */}
+          <div className="flex gap-3 mb-2 h-8">
+            {[0, 1, 2, 3].map((group) => (
+              <div key={group} className="flex gap-1.5 flex-1 justify-center">
+                {Array.from({ length: 4 }, (_, i) => group * 4 + i + 1).map((ch) => {
+                  const enabled = getChannelEnabled(ch);
+                  return (
+                    <div
+                      key={ch}
+                      className={`w-3 rounded-sm transition-all ${
+                        enabled
+                          ? 'bg-emerald-400 shadow-lg shadow-emerald-400/50'
+                          : 'bg-white/20'
+                      }`}
+                    />
+                  );
+                })}
+              </div>
             ))}
           </div>
 

@@ -1,43 +1,32 @@
 # NUEVO UI
 
-Web-based monitoring and control interface for the MAE 162 robot platform.
-A React/TypeScript frontend communicates over WebSocket with a FastAPI backend
-that bridges to the Arduino via UART serial.
+Web-based monitoring and control interface for the MAE 162 robotics platform.
+A React/TypeScript frontend communicates over WebSocket with a FastAPI backend (`nuevo_bridge`) that bridges to the Arduino Mega 2560 via UART.
 
 ```
-Browser  ←──WebSocket──→  FastAPI backend  ←──UART──→  Arduino
-(React)                   (nuevo_bridge)               (firmware)
-                               │
-                         ROS2 topics (optional, NUEVO_ROS2=1)
-```
-
----
-
-## Directory structure
-
-```
-nuevo_ui/
-├── frontend/          React + TypeScript + Vite source
-│   ├── src/
-│   │   ├── app/       App layout and page components
-│   │   ├── hooks/     useWebSocket (connection + auto-reconnect)
-│   │   ├── lib/       wsProtocol.ts, wsSend.ts
-│   │   ├── store/     Zustand state (robotStore, authStore)
-│   │   └── styles/    Global CSS (Tailwind v4)
-│   └── dist/          Vite build output → copy to backend/static/
-├── backend/
-│   ├── nuevo_bridge/  FastAPI app, serial manager, message router
-│   ├── static/        Compiled frontend (served by FastAPI)
-│   └── tlvcodec/      TLV encoder/decoder (matches Arduino firmware)
-└── scripts/
-    └── dev.sh         Start backend + frontend in parallel (development)
+Browser  ←── WebSocket ──→  nuevo_bridge (FastAPI)  ←── UART/TLV ──→  Arduino Mega
+(React)                       runs on RPi 5                              (firmware)
+                                    │
+                              ROS2 topics (optional)
+                           see ros2_ws/ for details
 ```
 
 ---
 
-## Development mode
+## Prerequisites
 
-Use the provided script to start both servers simultaneously:
+| Tool | Version | Notes |
+|------|---------|-------|
+| Node.js | ≥ 18 | For the frontend dev server |
+| npm | ≥ 9 | Bundled with Node.js |
+| Python | ≥ 3.11 | For the backend |
+| pip | latest | `pip install --upgrade pip` |
+
+---
+
+## Quick start — development
+
+The easiest way to run both servers at once:
 
 ```bash
 cd nuevo_ui
@@ -48,91 +37,68 @@ This starts:
 - **Backend** at `http://localhost:8000` — mock mode (no Arduino needed)
 - **Frontend** at `http://localhost:5173` — Vite dev server with hot reload
 
-Open `http://localhost:5173` in your browser. The frontend proxies `/ws` and `/auth`
-requests to the backend automatically (configured in `vite.config.ts`).
+Open `http://localhost:5173` in your browser. The frontend proxies `/ws` and `/auth` to the backend automatically.
 
 ### Manual startup (two terminals)
 
-**Terminal 1 — backend (mock mode)**
+**Terminal 1 — backend (mock mode, no Arduino needed)**
 ```bash
 cd nuevo_ui/backend
+pip install -e . --break-system-packages   # first time only
 NUEVO_MOCK=1 python3 -m nuevo_bridge
 ```
 
-**Terminal 2 — frontend dev server**
+**Terminal 2 — frontend**
 ```bash
 cd nuevo_ui/frontend
-npm install    # first time only
+npm install       # first time only
 npm run dev
 ```
 
+### Verify it works
+
+1. Visit `http://localhost:8000/health` — should return `{"status": "ok"}`
+2. Visit `http://localhost:5173` — dashboard loads, connection badge shows green
+
 ---
 
-## Production build
+## Production build (deploy to RPi)
 
-The frontend must be compiled to static files so the FastAPI backend can serve it
-as a single application on one port. This is required when running on the RPi or
-inside Docker.
-
-### 1. Install dependencies (first time only)
-
-```bash
-cd nuevo_ui/frontend
-npm install
-```
-
-### 2. Build
-
-```bash
-cd nuevo_ui/frontend
-npm run build
-```
-
-Vite compiles the app and writes output to `frontend/dist/`.
-
-### 3. Copy to backend static directory
+The frontend must be compiled to static files so `nuevo_bridge` can serve everything on a single port.
 
 ```bash
 # From nuevo_ui/
-cp -r frontend/dist/. backend/static/
-```
-
-After this the backend serves the full UI at `http://<device>:8000`.
-
-### One-liner (from `nuevo_ui/`)
-
-```bash
 cd frontend && npm run build && cd .. && cp -r frontend/dist/. backend/static/
 ```
 
----
-
-## Running the backend
-### install required Python packages
-
-```bash
-cd nuevo_ui/backend
-pip install -e . --break-system-packages
-```
-
-### Plain Python (no ROS2, mock mode)
-
-```bash
-cd nuevo_ui/backend
-NUEVO_MOCK=1 python3 -m nuevo_bridge
-```
-
-### Plain Python (real Arduino)
+Then on the RPi, start the backend — it serves both the API and the compiled UI:
 
 ```bash
 cd nuevo_ui/backend
 NUEVO_SERIAL_PORT=/dev/ttyAMA0 python3 -m nuevo_bridge
 ```
 
-### With ROS2 (inside Docker or on Ubuntu 24.04 with ROS2 installed)
+Access the UI from any browser on the local network at `http://<rpi-hostname>:8000`.
 
-See [`../ros2_ws/README.md`](../ros2_ws/README.md) for Docker setup. The bridge is started
-automatically by the Docker entrypoint with `NUEVO_ROS2=1`.
+---
+
+## Running the backend
+
+### Mock mode (no Arduino, for development)
+```bash
+cd nuevo_ui/backend
+NUEVO_MOCK=1 python3 -m nuevo_bridge
+```
+
+### Real Arduino
+```bash
+cd nuevo_ui/backend
+NUEVO_SERIAL_PORT=/dev/ttyAMA0 python3 -m nuevo_bridge
+```
+
+### With ROS2
+Set `NUEVO_ROS2=1` to enable ROS2 topic publishing/subscribing alongside the WebSocket bridge. The bridge node is launched automatically when running inside Docker.
+See [`../ros2_ws/README.md`](../ros2_ws/README.md) for Docker setup and ROS2 integration details.
 
 ---
 
@@ -140,34 +106,44 @@ automatically by the Docker entrypoint with `NUEVO_ROS2=1`.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `NUEVO_MOCK` | `0` | `1` = run without Arduino (simulated data) |
-| `NUEVO_ROS2` | `0` | `1` = enable ROS2 topic publishing/subscribing |
-| `NUEVO_SERIAL_PORT` | `/dev/ttyAMA0` | Serial device path |
-| `NUEVO_SERIAL_BAUD` | `1000000` | Baud rate (must match firmware) |
+| `NUEVO_MOCK` | `0` | `1` = simulate Arduino data (no hardware needed) |
+| `NUEVO_SERIAL_PORT` | `/dev/ttyAMA0` | Serial device path to the Arduino |
+| `NUEVO_SERIAL_BAUD` | `500000` | Baud rate — must match firmware `RPI_BAUD_RATE` |
+| `NUEVO_ROS2` | `0` | `1` = enable ROS2 topic bridge (requires ROS2 installed) |
 
 ---
 
-## WebSocket API
+## WebSocket API — summary
 
-The frontend connects to `ws://<host>:8000/ws?token=<jwt>`. All messages are JSON.
+All messages are JSON. The frontend connects to `ws://<host>/ws?token=<jwt>`.
 
-**Bridge → browser (topics):**
+**Bridge → browser (telemetry topics):**
 
 | Topic | Description |
 |-------|-------------|
-| `system_status` | Arduino state, firmware version, loop timing, errors |
+| `system_status` | Arduino uptime, loop timing, error flags, enable masks |
 | `voltage` | Battery mV, 5V rail mV, servo rail mV |
 | `dc_status_all` | Position, velocity, PWM, PID state for all 4 DC motors |
 | `step_status_all` | State, position, speed for all 4 steppers |
 | `servo_status_all` | Enable mask and pulse width for all 16 servo channels |
 | `io_status` | Button states, LED brightness, NeoPixel colors |
+| `imu` | Quaternion, accel/gyro/mag, calibration state |
 | `kinematics` | x, y, θ, vx, vy, ωz from wheel odometry |
-| `imu` | Quaternion, raw accel/gyro, magnetometer, calibration state |
 | `connection` | Serial port stats (rx/tx bytes, CRC errors) |
 
-**Browser → bridge (commands):** `dc_enable`, `dc_set_velocity`, `dc_set_pwm`,
-`dc_set_position`, `set_pid`, `step_enable`, `step_move`, `step_home`,
-`step_set_params`, `servo_enable`, `servo_set`, `set_led`, `set_neopixel`,
-`sys_cmd`, `mag_cal_cmd`.
+**Browser → bridge (commands):**
+`dc_enable`, `dc_set_velocity`, `dc_set_pwm`, `dc_set_position`, `set_pid`,
+`step_enable`, `step_move`, `step_home`, `step_set_params`,
+`servo_enable`, `servo_set`,
+`set_led`, `set_neopixel`,
+`sys_cmd`, `mag_cal_cmd`
 
-See `backend/nuevo_bridge/message_router.py` for full field definitions.
+Full message formats and field definitions: [`docs/architecture.md`](docs/architecture.md)
+
+---
+
+## Further reading
+
+- [`docs/architecture.md`](docs/architecture.md) — backend internals, message router, TLV codec, WebSocket protocol reference
+- [`../ros2_ws/README.md`](../ros2_ws/README.md) — ROS2 integration and Docker setup
+- [`../firmware/README.md`](../firmware/README.md) — Arduino firmware and UART protocol

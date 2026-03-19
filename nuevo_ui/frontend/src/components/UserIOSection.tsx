@@ -1,7 +1,8 @@
-import { useState, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Plus, X } from "lucide-react";
 import { Switch } from "./ui/switch";
 import { Slider } from "./ui/slider";
+import { createPortal } from "react-dom";
 
 import { useRobotStore } from "../store/robotStore";
 import { wsSend } from "../lib/wsSend";
@@ -45,7 +46,14 @@ export function UserIOSection() {
   ]);
   const [showPicker, setShowPicker] = useState<number | null>(null);
   const [pickerPos, setPickerPos] = useState({ x: 0, y: 0 });
-  const rgbContainerRef = useRef<HTMLDivElement>(null);
+
+  // Close picker on scroll so the fixed-position tooltip doesn't drift
+  useEffect(() => {
+    if (showPicker === null) return;
+    const close = () => setShowPicker(null);
+    window.addEventListener("scroll", close, true);
+    return () => window.removeEventListener("scroll", close, true);
+  }, [showPicker]);
 
   // Button state from bitmask
   const buttonMask      = io?.buttonMask ?? 0;
@@ -117,14 +125,8 @@ export function UserIOSection() {
   };
 
   const handleLEDClick = (e: React.MouseEvent<HTMLButtonElement>, stripId: number) => {
-    if (rgbContainerRef.current) {
-      const containerRect = rgbContainerRef.current.getBoundingClientRect();
-      const rect = e.currentTarget.getBoundingClientRect();
-      setPickerPos({
-        x: rect.left - containerRect.left,
-        y: rect.bottom - containerRect.top + 8,
-      });
-    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    setPickerPos({ x: rect.left, y: rect.bottom + 8 });
     setShowPicker(showPicker === stripId ? null : stripId);
   };
 
@@ -213,100 +215,101 @@ export function UserIOSection() {
         </div>
 
         {/* WS2812B RGB LEDs */}
-        <div className="relative" ref={rgbContainerRef}>
-          <div className="flex items-center gap-2 flex-wrap">
-            <h4 className="text-sm font-semibold text-white">RGB LED</h4>
+        <div className="flex items-center gap-2 flex-wrap">
+          <h4 className="text-sm font-semibold text-white">RGB LED</h4>
 
-            {strips.map((strip) => (
-              <button
-                key={strip.id}
-                onClick={(e) => handleLEDClick(e, strip.id)}
-                className="size-6 rounded-lg border-2 border-white/30 transition-all hover:scale-110"
-                style={{
-                  backgroundColor: rgbToHex(strip.r, strip.g, strip.b),
-                  boxShadow: `0 0 8px ${rgbToHex(strip.r, strip.g, strip.b)}`,
-                }}
-              />
-            ))}
-
+          {strips.map((strip) => (
             <button
-              onClick={addStrip}
-              className="size-6 rounded-lg backdrop-blur-xl bg-white/10 border border-white/20 hover:bg-white/20 transition-all flex items-center justify-center"
-            >
-              <Plus className="size-3 text-white" />
-            </button>
-          </div>
+              key={strip.id}
+              onClick={(e) => handleLEDClick(e, strip.id)}
+              className="size-6 rounded-lg border-2 border-white/30 transition-all hover:scale-110"
+              style={{
+                backgroundColor: rgbToHex(strip.r, strip.g, strip.b),
+                boxShadow: `0 0 8px ${rgbToHex(strip.r, strip.g, strip.b)}`,
+              }}
+            />
+          ))}
 
-          {/* Color picker — absolute inside rgbContainerRef so pickerPos coordinates match */}
-          {showPicker !== null && strips.find((s) => s.id === showPicker) && (
-            <div className="absolute z-50" style={{ left: pickerPos.x, top: pickerPos.y }}>
-              <div
-                className="ml-3 w-0 h-0"
-                style={{
-                  borderLeft: "6px solid transparent",
-                  borderRight: "6px solid transparent",
-                  borderBottom: "6px solid rgba(255, 255, 255, 0.2)",
-                }}
-              />
-              <div className="rounded-2xl backdrop-blur-2xl bg-white/10 border border-white/20 shadow-2xl p-4">
-                <div className="flex justify-end mb-2">
-                  <button
-                    onClick={() => setShowPicker(null)}
-                    className="p-1 rounded-lg backdrop-blur-xl bg-white/10 border border-white/20 hover:bg-white/20 transition-all"
-                  >
-                    <X className="size-3 text-white" />
-                  </button>
-                </div>
+          <button
+            onClick={addStrip}
+            className="size-6 rounded-lg backdrop-blur-xl bg-white/10 border border-white/20 hover:bg-white/20 transition-all flex items-center justify-center"
+          >
+            <Plus className="size-3 text-white" />
+          </button>
+        </div>
+      </div>
 
-                {/* Hue ring */}
-                <div className="flex justify-center mb-4">
+      {/* Color picker — portalled to body so it escapes overflow/stacking constraints */}
+      {showPicker !== null &&
+        strips.find((s) => s.id === showPicker) &&
+        createPortal(
+          <div className="fixed z-[9999]" style={{ left: pickerPos.x, top: pickerPos.y }}>
+            <div
+              className="ml-3 w-0 h-0"
+              style={{
+                borderLeft: "6px solid transparent",
+                borderRight: "6px solid transparent",
+                borderBottom: "6px solid rgba(255, 255, 255, 0.2)",
+              }}
+            />
+            <div className="rounded-2xl backdrop-blur-2xl bg-white/10 border border-white/20 shadow-2xl p-4">
+              <div className="flex justify-end mb-2">
+                <button
+                  onClick={() => setShowPicker(null)}
+                  className="p-1 rounded-lg backdrop-blur-xl bg-white/10 border border-white/20 hover:bg-white/20 transition-all"
+                >
+                  <X className="size-3 text-white" />
+                </button>
+              </div>
+
+              {/* Hue ring */}
+              <div className="flex justify-center mb-4">
+                <div
+                  onClick={handleHueClick}
+                  className="relative w-32 h-32 rounded-full cursor-pointer"
+                  style={{
+                    background: `conic-gradient(
+                      hsl(0,100%,50%), hsl(30,100%,50%), hsl(60,100%,50%),
+                      hsl(90,100%,50%), hsl(120,100%,50%), hsl(150,100%,50%),
+                      hsl(180,100%,50%), hsl(210,100%,50%), hsl(240,100%,50%),
+                      hsl(270,100%,50%), hsl(300,100%,50%), hsl(330,100%,50%),
+                      hsl(360,100%,50%))`,
+                  }}
+                >
+                  <div className="absolute inset-4 rounded-full backdrop-blur-xl bg-white/10 border border-white/20" />
                   <div
-                    onClick={handleHueClick}
-                    className="relative w-32 h-32 rounded-full cursor-pointer"
+                    className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 size-8 rounded-full border-2 border-white shadow-lg"
                     style={{
-                      background: `conic-gradient(
-                        hsl(0,100%,50%), hsl(30,100%,50%), hsl(60,100%,50%),
-                        hsl(90,100%,50%), hsl(120,100%,50%), hsl(150,100%,50%),
-                        hsl(180,100%,50%), hsl(210,100%,50%), hsl(240,100%,50%),
-                        hsl(270,100%,50%), hsl(300,100%,50%), hsl(330,100%,50%),
-                        hsl(360,100%,50%))`,
+                      backgroundColor: rgbToHex(
+                        strips.find((s) => s.id === showPicker)!.r,
+                        strips.find((s) => s.id === showPicker)!.g,
+                        strips.find((s) => s.id === showPicker)!.b,
+                      ),
                     }}
-                  >
-                    <div className="absolute inset-4 rounded-full backdrop-blur-xl bg-white/10 border border-white/20" />
-                    <div
-                      className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 size-8 rounded-full border-2 border-white shadow-lg"
-                      style={{
-                        backgroundColor: rgbToHex(
-                          strips.find((s) => s.id === showPicker)!.r,
-                          strips.find((s) => s.id === showPicker)!.g,
-                          strips.find((s) => s.id === showPicker)!.b,
-                        ),
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {/* Brightness slider */}
-                <div className="space-y-2 w-48">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-white/70">Brightness</span>
-                    <span className="text-xs font-mono text-white">
-                      {strips.find((s) => s.id === showPicker)?.brightness ?? 0}%
-                    </span>
-                  </div>
-                  <Slider
-                    value={[strips.find((s) => s.id === showPicker)?.brightness ?? 0]}
-                    onValueChange={(val) => updateStrip(showPicker!, { brightness: val[0] })}
-                    min={0}
-                    max={100}
-                    step={1}
                   />
                 </div>
               </div>
+
+              {/* Brightness slider */}
+              <div className="space-y-2 w-48">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-white/70">Brightness</span>
+                  <span className="text-xs font-mono text-white">
+                    {strips.find((s) => s.id === showPicker)?.brightness ?? 0}%
+                  </span>
+                </div>
+                <Slider
+                  value={[strips.find((s) => s.id === showPicker)?.brightness ?? 0]}
+                  onValueChange={(val) => updateStrip(showPicker!, { brightness: val[0] })}
+                  min={0}
+                  max={100}
+                  step={1}
+                />
+              </div>
             </div>
-          )}
-        </div>
-      </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
