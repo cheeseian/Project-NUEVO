@@ -212,9 +212,10 @@ class MagCalibrationController:
     MAX_DURATION_S = 30.0
     MIN_AXIS_SPAN_UT = 12.0
     MIN_AXIS_RATIO = 0.30
-    STABLE_WINDOW_S = 1.25
     SPAN_GROWTH_EPS_UT = 0.5
-    MAX_STD_RATIO = 0.25
+    FIT_RETRY_INTERVAL_S = 0.5
+    MAX_STD_RATIO = 0.35
+    TIMEOUT_STD_RATIO = 0.50
     MAX_SAMPLES = 4096
 
     def __init__(self, sender: Optional[Callable[[str, dict], bool]] = None):
@@ -236,9 +237,11 @@ class MagCalibrationController:
         self._apply_sent = False
         self._samples: List[Tuple[float, float, float]] = []
         self._start_time = 0.0
-        self._last_span_growth_time = 0.0
         self._min = [math.inf, math.inf, math.inf]
         self._max = [-math.inf, -math.inf, -math.inf]
+        self._last_fit_attempt_time = 0.0
+        self._best_result: Optional[MagCalibrationResult] = None
+        self._best_std_ratio = math.inf
 
     def _observe_status(self, data: dict) -> None:
         state = int(data.get("state", 0))
@@ -249,9 +252,11 @@ class MagCalibrationController:
                 self._apply_sent = False
                 self._samples.clear()
                 self._start_time = now
-                self._last_span_growth_time = now
                 self._min = [math.inf, math.inf, math.inf]
                 self._max = [-math.inf, -math.inf, -math.inf]
+                self._last_fit_attempt_time = 0.0
+                self._best_result = None
+                self._best_std_ratio = math.inf
             return
 
         if self._sampling and state in (0, 3, 4):
@@ -284,34 +289,46 @@ class MagCalibrationController:
                 self._min[idx] = value
             if value > self._max[idx]:
                 self._max[idx] = value
-        spans = [self._max[idx] - self._min[idx] for idx in range(3)]
-        if max(spans) > 0.0:
-            span_growth = max(spans[idx] - prev_spans[idx] for idx in range(3))
-            if span_growth >= self.SPAN_GROWTH_EPS_UT:
-                self._last_span_growth_time = now
-
         elapsed = now - self._start_time
-        if elapsed >= self.MAX_DURATION_S:
-            self._send_command("sensor_mag_cal_cmd", {"command": 2})
-            self._reset()
-            return
+        spans = [self._max[idx] - self._min[idx] for idx in range(3)]
 
         if elapsed < self.MIN_DURATION_S or len(self._samples) < self.MIN_SAMPLES:
+            if elapsed >= self.MAX_DURATION_S:
+                self._send_command("sensor_mag_cal_cmd", {"command": 2})
+                self._reset()
             return
 
-        if min(spans) < self.MIN_AXIS_SPAN_UT:
-            return
-        if min(spans) / max(spans) < self.MIN_AXIS_RATIO:
-            return
-        if (now - self._last_span_growth_time) < self.STABLE_WINDOW_S:
+        if min(spans) < self.MIN_AXIS_SPAN_UT or (min(spans) / max(spans)) < self.MIN_AXIS_RATIO:
+            if elapsed >= self.MAX_DURATION_S:
+                self._send_command("sensor_mag_cal_cmd", {"command": 2})
+                self._reset()
             return
 
+        if self._last_fit_attempt_time != 0.0 and (now - self._last_fit_attempt_time) < self.FIT_RETRY_INTERVAL_S:
+            if elapsed >= self.MAX_DURATION_S and self._best_result is not None and self._best_std_ratio <= self.TIMEOUT_STD_RATIO:
+                self._apply_best_result()
+            return
+
+        self._last_fit_attempt_time = now
         result = fit_soft_iron_calibration(self._samples)
-        if result is None or result.mean_norm <= 1e-6:
-            return
-        if (result.std_norm / result.mean_norm) > self.MAX_STD_RATIO:
+        if result is not None and result.mean_norm > 1e-6:
+            std_ratio = result.std_norm / result.mean_norm
+            if std_ratio < self._best_std_ratio:
+                self._best_std_ratio = std_ratio
+                self._best_result = result
+            if std_ratio <= self.MAX_STD_RATIO:
+                self._apply_result(result)
+                return
+
+        if elapsed >= self.MAX_DURATION_S:
+            if self._best_result is not None and self._best_std_ratio <= self.TIMEOUT_STD_RATIO:
+                self._apply_best_result()
+            else:
+                self._send_command("sensor_mag_cal_cmd", {"command": 2})
+                self._reset()
             return
 
+    def _apply_result(self, result: MagCalibrationResult) -> None:
         if self._send_command("sensor_mag_cal_cmd", {
             "command": 4,
             "offsetX": result.offset[0],
@@ -320,6 +337,10 @@ class MagCalibrationController:
             "softIronMatrix": list(result.matrix),
         }):
             self._apply_sent = True
+
+    def _apply_best_result(self) -> None:
+        if self._best_result is not None:
+            self._apply_result(self._best_result)
 
     def _send_command(self, cmd: str, data: dict) -> bool:
         if self._sender is None:

@@ -52,8 +52,6 @@ def main() -> None:
     controller._start_time -= controller.MIN_DURATION_S + 1.0
     for sample in samples:
         controller.observe("sensor_imu", {"magX": sample[0], "magY": sample[1], "magZ": sample[2]})
-    controller._last_span_growth_time -= controller.STABLE_WINDOW_S + 1.0
-    controller.observe("sensor_imu", {"magX": samples[-1][0], "magY": samples[-1][1], "magZ": samples[-1][2]})
     assert sent, "controller did not emit calibration apply command"
     cmd, data = sent[-1]
     assert cmd == "sensor_mag_cal_cmd"
@@ -65,7 +63,6 @@ def main() -> None:
     controller.observe("sensor_mag_cal_status", {"state": 1})
     controller._sampling = True
     controller._start_time -= controller.MIN_DURATION_S + 1.0
-    controller._last_span_growth_time -= controller.STABLE_WINDOW_S + 1.0
     controller._samples = list(samples[:-1])
     xs = [sample[0] for sample in controller._samples]
     ys = [sample[1] for sample in controller._samples]
@@ -80,6 +77,26 @@ def main() -> None:
     )
     controller.observe("sensor_imu", {"magX": tiny_growth_sample[0], "magY": tiny_growth_sample[1], "magZ": tiny_growth_sample[2]})
     assert sent, "controller did not emit calibration apply command after sub-epsilon span growth"
+    cmd, data = sent[-1]
+    assert cmd == "sensor_mag_cal_cmd"
+    assert data["command"] == 4
+
+    sent = []
+    controller = MagCalibrationController(sender=lambda cmd, data: sent.append((cmd, data)) or True)
+    controller.observe("sensor_mag_cal_status", {"state": 1})
+    controller._sampling = True
+    controller._start_time -= controller.MAX_DURATION_S + 1.0
+    controller._samples = list(samples)
+    xs = [sample[0] for sample in controller._samples]
+    ys = [sample[1] for sample in controller._samples]
+    zs = [sample[2] for sample in controller._samples]
+    controller._min = [min(xs), min(ys), min(zs)]
+    controller._max = [max(xs), max(ys), max(zs)]
+    controller._best_result = fit_soft_iron_calibration(samples)
+    assert controller._best_result is not None
+    controller._best_std_ratio = controller._best_result.std_norm / controller._best_result.mean_norm
+    controller.observe("sensor_imu", {"magX": samples[-1][0], "magY": samples[-1][1], "magZ": samples[-1][2]})
+    assert sent, "controller did not apply best fit on timeout"
     cmd, data = sent[-1]
     assert cmd == "sensor_mag_cal_cmd"
     assert data["command"] == 4
