@@ -138,6 +138,7 @@ class Robot:
     # Servo pulse range (standard hobby servo)
     _SERVO_MIN_US: int = 1000
     _SERVO_MAX_US: int = 2000
+    _SHUTDOWN_SETTLE_S: float = 0.10
 
     def __init__(
         self,
@@ -453,7 +454,9 @@ class Robot:
         """
         self.cancel_motion()
         self.stop()
+        time.sleep(self._SHUTDOWN_SETTLE_S)
         self.disable_drive_motors()
+        time.sleep(self._SHUTDOWN_SETTLE_S)
 
     def set_left_wheel(self, motor_id: int) -> None:
         """Alias for set_odom_left_motor()."""

@@ -62,6 +62,7 @@ class MyFSM(RobotFSM):
             [500.0, 500.0],
             [500.0, 0.0],
         ])
+        self.remaining_path = self.path.copy()
         self.planner = PurePursuitPlanner(
             lookahead_dist=50.0,
             max_angular=2.0,
@@ -99,14 +100,15 @@ class MyFSM(RobotFSM):
         elif state == "MOVING":
             current_x, current_y, current_theta_deg = self.robot.get_pose()
             current_theta_rad = math.radians(current_theta_deg)
+            self._advance_remaining_path(current_x, current_y)
             current_pursuit_x, current_pursuit_y = self.planner._lookahead_point(
                 current_x,
                 current_y,
-                waypoints=self.path,
+                waypoints=self.remaining_path,
             )
             linear_velocity_cmd, angular_velocity_cmd_rad_s = self.planner.compute_velocity(
                 pose=(current_x, current_y, current_theta_rad),
-                waypoints=self.path,
+                waypoints=self.remaining_path,
                 max_linear=150.0,
             )
             self.robot.set_velocity(
@@ -118,12 +120,14 @@ class MyFSM(RobotFSM):
             if now >= self._next_debug_log_time:
                 print(
                     "MOVING: pose=(%.2f, %.2f, %.2f deg / %.2f rad) "
-                    "lookahead=(%.2f, %.2f) command=(%.2f mm/s, %.2f rad/s)"
+                    "target=(%.2f, %.2f) lookahead=(%.2f, %.2f) command=(%.2f mm/s, %.2f rad/s)"
                     % (
                         current_x,
                         current_y,
                         current_theta_deg,
                         current_theta_rad,
+                        self.remaining_path[0][0],
+                        self.remaining_path[0][1],
                         current_pursuit_x,
                         current_pursuit_y,
                         linear_velocity_cmd,
@@ -132,7 +136,7 @@ class MyFSM(RobotFSM):
                 )
                 self._next_debug_log_time = now + 0.25
 
-            if self.planner.TargetReached(current_x, current_y, self.path):
+            if self.planner.TargetReached(current_x, current_y, self.remaining_path):
                 print("MOVING: Target reached! Stopping.")
                 self.trigger("to_idle")
 
@@ -149,6 +153,7 @@ class MyFSM(RobotFSM):
         self.robot.set_state(FirmwareState.RUNNING)
         self.robot.reset_odometry()
         self.robot.wait_for_pose_update(timeout=0.2)
+        self.remaining_path = self.path[1:].copy() if len(self.path) > 1 else self.path.copy()
         self._show_idle_leds()
         print("[FSM] IDLE (odometry reset)")
 
@@ -170,6 +175,18 @@ class MyFSM(RobotFSM):
     def _show_moving_leds(self) -> None:
         self.robot.set_led(LED.RED, 0)
         self.robot.set_led(LED.GREEN, 255)
+
+    def _advance_remaining_path(self, current_x: float, current_y: float) -> None:
+        advance_radius = max(self.planner.goal_tolerance, self.planner._lookahead)
+        while len(self.remaining_path) > 1:
+            next_x, next_y = self.remaining_path[0]
+            if math.hypot(next_x - current_x, next_y - current_y) > advance_radius:
+                break
+            self.remaining_path = self.remaining_path[1:]
+            print(
+                "[FSM] advancing to next waypoint: (%.2f, %.2f)"
+                % (self.remaining_path[0][0], self.remaining_path[0][1])
+            )
 
 
 def run(robot: Robot) -> None:

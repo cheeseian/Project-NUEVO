@@ -26,6 +26,8 @@ def main(args=None) -> None:
     try:
         from robot.main import run
         run(node.robot)
+    except KeyboardInterrupt:
+        node.get_logger().info("robot node interrupted; shutting down")
     finally:
         try:
             node.robot.shutdown()
