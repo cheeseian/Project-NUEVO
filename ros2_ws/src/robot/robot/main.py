@@ -35,6 +35,9 @@ RIGHT_WHEEL_DIR_INVERTED = True
 WHEEL_DIAMETER_MM = 74.0
 WHEEL_BASE_MM = 333.0
 INITIAL_THETA_DEG = 90.0
+LOOKAHEAD_MM = 100.0
+MAX_LINEAR_SPEED_MM_S = 100.0
+MAX_ANGULAR_SPEED_RAD_S = 1.0
 
 
 class MyFSM(RobotFSM):
@@ -77,8 +80,8 @@ class MyFSM(RobotFSM):
         )
         self.remaining_path = self.path.copy()
         self.planner = PurePursuitPlanner(
-            lookahead_dist=50.0,
-            max_angular=2.0,
+            lookahead_dist=LOOKAHEAD_MM,
+            max_angular=MAX_ANGULAR_SPEED_RAD_S,
             goal_tolerance=20.0,
         )
         self._next_debug_log_time = 0.0
@@ -122,7 +125,7 @@ class MyFSM(RobotFSM):
             linear_velocity_cmd, angular_velocity_cmd_rad_s = self.planner.compute_velocity(
                 pose=(current_x, current_y, current_theta_rad),
                 waypoints=self.remaining_path,
-                max_linear=150.0,
+                max_linear=MAX_LINEAR_SPEED_MM_S,
             )
             self.robot.set_velocity(
                 linear_velocity_cmd,

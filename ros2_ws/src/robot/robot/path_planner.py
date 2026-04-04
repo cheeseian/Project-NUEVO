@@ -85,32 +85,50 @@ class PurePursuitPlanner(PathPlanner):
     ) -> tuple[float, float]:
         x, y, theta = pose
         tx, ty = self._lookahead_point(x, y, waypoints)
+        dx = tx - x
+        dy = ty - y
 
-        angle_to_target = math.atan2(ty - y, tx - x)
-        heading_error   = _wrap_angle(angle_to_target - theta)
+        # Transform the lookahead point into the robot frame.
+        x_r = math.cos(theta) * dx + math.sin(theta) * dy
+        y_r = -math.sin(theta) * dx + math.cos(theta) * dy
+        dist = math.hypot(x_r, y_r)
 
-        linear  = max_linear * math.cos(heading_error)
-        angular = self._max_angular * math.tanh(heading_error * 2.0)
+        if dist < 1e-6:
+            return 0.0, 0.0
 
-        # Don't drive backwards
-        linear = max(0.0, linear)
+        # Standard pure-pursuit curvature for a differential-drive robot.
+        curvature = 2.0 * y_r / (dist * dist)
+
+        # Slow down for high-curvature turns. The lookahead-scaled term is
+        # dimensionless and gives a smooth transition between straight driving
+        # and tight cornering.
+        forward_scale = max(0.0, x_r / dist)
+        curvature_scale = 1.0 + abs(curvature) * self._lookahead
+        linear = max_linear * forward_scale / curvature_scale
+
+        if linear <= 1e-6:
+            angular = self._max_angular * math.tanh(y_r / max(self._lookahead, 1e-6))
+            return 0.0, angular
+
+        angular = curvature * linear
+        if abs(angular) > self._max_angular:
+            angular = math.copysign(self._max_angular, angular)
+            linear = min(linear, abs(angular / curvature)) if abs(curvature) > 1e-6 else linear
+
         return linear, angular
 
     def _lookahead_point(
         self, x: float, y: float, waypoints: list[tuple[float, float]]
     ) -> tuple[float, float]:
         """
-        Return the first forward waypoint beyond the lookahead distance.
+        Return the first ordered waypoint beyond the lookahead distance.
 
-        Start from the closest waypoint instead of the first waypoint in the
-        full path so a long-running demo does not snap back toward the origin
-        once the robot has already progressed along the route.
+        The caller is expected to pass the remaining path in route order. That
+        avoids Euclidean nearest-point jumps around corners, which otherwise
+        make the lookahead target chatter between the incoming and outgoing
+        path segments.
         """
-        closest_index = min(
-            range(len(waypoints)),
-            key=lambda index: math.hypot(waypoints[index][0] - x, waypoints[index][1] - y),
-        )
-        for wx, wy in waypoints[closest_index:]:
+        for wx, wy in waypoints:
             if math.hypot(wx - x, wy - y) >= self._lookahead:
                 return wx, wy
         return waypoints[-1]
