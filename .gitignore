@@ -9,6 +9,7 @@
 .local/
 openspec/
 CLAUDE.md
+AGENTS.md
 
 # ============================================
 # ROS2 Workspace
