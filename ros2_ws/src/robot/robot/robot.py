@@ -267,7 +267,7 @@ class Robot:
         self._odom_param_req_pub = node.create_publisher(SysOdomParamReq, '/sys_odom_param_req', 10)
         self._odom_param_pub = node.create_publisher(SysOdomParamSet, '/sys_odom_param_set', 10)
         self._odom_pub     = node.create_publisher(SysOdomReset,   '/sys_odom_reset',   10)
-        self._fused_kin_pub = node.create_publisher(SensorKinematics, '/fused_kinematics', 10)
+        # self._fused_kin_pub = node.create_publisher(SensorKinematics, '/fused_kinematics', 10)
 
         # ── Subscriptions ─────────────────────────────────────────────────────
         node.create_subscription(SystemState,      '/sys_state',         self._on_sys_state,   10)
@@ -434,20 +434,20 @@ class Robot:
         self._pose_event.set()
         self._pose_event.clear()
 
-        # Publish fused state so external tools (RViz, student nodes, etc.)
-        # receive corrected position and heading on /fused_kinematics without
-        # needing to subscribe to the raw /sensor_kinematics themselves.
-        fused_msg = SensorKinematics()
-        fused_msg.header    = getattr(msg, 'header', None)
-        fused_msg.vx        = msg.vx
-        fused_msg.vy        = msg.vy
-        fused_msg.v_theta   = msg.v_theta
-        fused_msg.timestamp = getattr(msg, 'timestamp', 0)
-        with self._lock:
-            fused_msg.x     = self._fused_x_mm
-            fused_msg.y     = self._fused_y_mm
-            fused_msg.theta = self._fused_theta
-        self._fused_kin_pub.publish(fused_msg)
+        # # Publish fused state so external tools (RViz, student nodes, etc.)
+        # # receive corrected position and heading on /fused_kinematics without
+        # # needing to subscribe to the raw /sensor_kinematics themselves.
+        # fused_msg = SensorKinematics()
+        # fused_msg.header    = getattr(msg, 'header', None)
+        # fused_msg.vx        = msg.vx
+        # fused_msg.vy        = msg.vy
+        # fused_msg.v_theta   = msg.v_theta
+        # fused_msg.timestamp = getattr(msg, 'timestamp', 0)
+        # with self._lock:
+        #     fused_msg.x     = self._fused_x_mm
+        #     fused_msg.y     = self._fused_y_mm
+        #     fused_msg.theta = self._fused_theta
+        # self._fused_kin_pub.publish(fused_msg)
 
     def _on_tag_detections(self, msg: TagDetectionArray) -> None:
         """Cache GPS position from the tracked ArUco tag (metres → mm, arena frame)."""
