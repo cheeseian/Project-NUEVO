@@ -106,12 +106,12 @@ def run(robot: Robot) -> None:
             ttc_weight = 0.1,
             )
             print("Path is ready, Entering IDLE state.")
+            print("[FSM] IDLE - Press BTN_1 to enter MOVING state.")
             state = "IDLE"
 
         elif state == "IDLE":
             show_idle_leds(robot)
             robot._draw_lidar_obstacles()
-            print("[FSM] IDLE - Press BTN_1 to enter MOVING state.")
             if robot.get_button(Button.BTN_1):
                 LOOKAHEAD_DIST = 100.0 # Lookahead distance in mm (adjust as needed)
                 robot._nav_follow_path_loop(path, period)
