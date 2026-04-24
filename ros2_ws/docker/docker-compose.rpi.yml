@@ -26,7 +26,7 @@ services:
     # Arduino UART — RPi GPIO 14/15 (hardware UART).
     devices:
       - /dev/ttyAMA0:/dev/ttyAMA0
-      - /dev/rplidar:/dev/rplidar
+      # - /dev/rplidar:/dev/rplidar
     
     group_add:
       - dialout
