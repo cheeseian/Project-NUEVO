@@ -13,7 +13,7 @@ import numpy as np
 # Robot build configuration
 # ---------------------------------------------------------------------------
 
-TAG_ID = 3 # set aruco tag ID 11 
+TAG_ID = 13 # set aruco tag ID 11 
 POSITION_UNIT = Unit.MM
 WHEEL_DIAMETER = 74.0
 WHEEL_BASE = 321.0
@@ -110,7 +110,7 @@ def run(robot: Robot) -> None:
             #     ( 2440.0,    0.0),
             #     ( 2745.0,    0.0),
             # ] 
-            #path1 = path_control_points
+            path1 = path_control_points
             #path1 = densify_polyline(path_control_points, spacing=20.0)
             remaining_path = path.copy() 
             print("Path is ready, Entering IDLE state.")
