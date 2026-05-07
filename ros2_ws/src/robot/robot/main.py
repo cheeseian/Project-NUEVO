@@ -13,15 +13,15 @@ import numpy as np
 # Robot build configuration
 # ---------------------------------------------------------------------------
 
-TAG_ID = 11 # set aruco tag ID 11 
+TAG_ID = 13 # set aruco tag ID 11 
 POSITION_UNIT = Unit.MM
 WHEEL_DIAMETER = 74.0
-WHEEL_BASE = 333.0
+WHEEL_BASE = 321.0
 INITIAL_THETA_DEG = 90.0
 
-LEFT_WHEEL_MOTOR = Motor.DC_M1
+LEFT_WHEEL_MOTOR = Motor.DC_M2
 LEFT_WHEEL_DIR_INVERTED = False
-RIGHT_WHEEL_MOTOR = Motor.DC_M2
+RIGHT_WHEEL_MOTOR = Motor.DC_M1
 RIGHT_WHEEL_DIR_INVERTED = True
 
 
@@ -76,10 +76,16 @@ def run(robot: Robot) -> None:
             # ]
             # left lane
             path_control_points = [
-                (300.0,   0.0),
-                (300.0, 2500.0),
-                (1300.0, 2500.0),
-            ]
+                (   0.0,     0.0),
+                (   0.0,  3350.0),
+                ( 610.0,  3350.0),
+                ( 610.0,   305.0),
+                ( 1220.0,  305.0),
+                ( 1220.0, 3350.0),
+                ( 2440.0, 3350.0),
+                ( 2440.0,    0.0),
+                ( 2745.0,    0.0),
+            ] 
 
             path = densify_polyline(path_control_points, spacing=400.0)
 
