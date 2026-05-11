@@ -37,6 +37,8 @@ def configure_robot(robot: Robot) -> None:
         right_motor_dir_inverted=RIGHT_WHEEL_DIR_INVERTED,
     )
     robot.set_tracked_tag_id(TAG_ID) # set aruco tag ID as the tracked tag for localization
+    robot.enable_lidar()
+    robot.enable_gps()
 
 
 def show_idle_leds(robot: Robot) -> None:
