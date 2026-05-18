@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import LaserScan
 import numpy as np
 import matplotlib.pyplot as plt
@@ -13,23 +14,23 @@ class LidarSubscriber(Node):
             LaserScan,
             '/scan',
             self.listener_callback,
-            10
+            qos_profile_sensor_data,
         )
         plt.ion()
         self.fig, self.ax = plt.subplots()
 
     def listener_callback(self, msg):
-        angles = np.arange(msg.angle_min, msg.angle_max+msg.angle_increment, msg.angle_increment)
         ranges = np.array(msg.ranges)
+        angles = np.linspace(msg.angle_min, msg.angle_max, len(ranges))
 
         # Filter invalid values
         valid = np.isfinite(ranges)
         angles = angles[valid]
         ranges = ranges[valid]
 
-        # Convert to Cartesian
+        # Convert to Cartesian — negate y for upside-down mount (forward axis correct)
         x = ranges * np.cos(angles)
-        y = ranges * np.sin(angles)
+        y = -ranges * np.sin(angles)
 
         self.ax.clear()
         self.ax.scatter(x, y, s=5)
@@ -41,7 +42,7 @@ class LidarSubscriber(Node):
         plt.grid()
         plt.draw()
         plt.pause(0.01)
-        plt.savefig('/data/plot.png')
+        plt.savefig('/runtime_output/plot.png')
 
 
 class SensorNode(Node):

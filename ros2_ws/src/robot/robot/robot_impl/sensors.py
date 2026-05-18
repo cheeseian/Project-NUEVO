@@ -203,8 +203,10 @@ class SensorsMixin:
             fov_max = self._lidar_fov_max_rad
 
         # Step 1 — polar → Cartesian in lidar sensor frame (metres → mm)
-        lx = (ranges * np.cos(angles)) * 1000.0
-        ly = (ranges * np.sin(angles)) * 1000.0
+        # Negate ly: lidar is mounted upside-down (flip_x_axis=true in driver reverses
+        # scan direction, which mirrors left/right; negating ly corrects this).
+        lx =  (ranges * np.cos(angles)) * 1000.0
+        ly = -(ranges * np.sin(angles)) * 1000.0
 
         # Step 2 — rotate by mount heading (axes align with robot body frame;
         # origin still at lidar centre, no translation yet)
