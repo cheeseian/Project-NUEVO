@@ -59,6 +59,13 @@ LAPF_EMA_ALPHA       = 0.35
 STATUS_INTERVAL_S    = 0.5
 
 # ---------------------------------------------------------------------------
+# GPS position fusion
+# ---------------------------------------------------------------------------
+
+POSITION_FUSION_ALPHA = 0.35   # GPS weight for complementary filter (0–1)
+GPS_TAG_ID            = 13     # ArUco tag ID to track (-1 = accept any tag)
+
+# ---------------------------------------------------------------------------
 # Map path — split at cone corridor boundaries
 # ---------------------------------------------------------------------------
 
@@ -106,6 +113,9 @@ def configure_robot(robot: Robot) -> None:
         range_max_mm=LIDAR_RANGE_MAX_MM,
         fov_deg=LIDAR_FOV_DEG,
     )
+    robot.enable_gps()
+    robot.set_position_fusion_alpha(POSITION_FUSION_ALPHA)
+    robot.set_tracked_tag_id(GPS_TAG_ID)
 
 
 def init_pp(robot: Robot, ctrl_points: list, spacing: float = 300.0) -> None:
@@ -158,12 +168,14 @@ def show_moving_leds(robot: Robot) -> None:
 
 
 def print_status(robot: Robot, label: str = "") -> None:
-    x, y, theta = robot.get_odometry_pose()
+    x, y, theta = robot.get_pose()
     confirmed = robot.get_obstacle_tracks(include_unconfirmed=False)
     raw_pts   = robot.get_obstacles()
+    pose_src  = "fused" if robot.has_fused_pose() else "odom"
+    gps_str   = "GPS:active" if robot.is_gps_active() else "GPS:stale"
     tag = f"[{label}]" if label else ""
-    print(f"{tag}  odom=({x:.0f}, {y:.0f}) mm  θ={theta:.1f}°"
-          f"  raw_pts={len(raw_pts)}  confirmed={len(confirmed)}")
+    print(f"{tag}  pose=({x:.0f}, {y:.0f}) mm [{pose_src}]  θ={theta:.1f}°"
+          f"  {gps_str}  raw_pts={len(raw_pts)}  confirmed={len(confirmed)}")
 
 
 # ---------------------------------------------------------------------------
@@ -224,15 +236,17 @@ def run(robot: Robot) -> None:
         # ------------------------------------------------------------------
         elif state == "LAPF_SEG2":
             if now - last_status_at >= STATUS_INTERVAL_S:
-                x, y, theta = robot.get_odometry_pose()
+                x, y, theta = robot.get_pose()
                 vt = robot.get_virtual_target()
                 confirmed   = robot.get_obstacle_tracks(include_unconfirmed=False)
                 unconfirmed = robot.get_obstacle_tracks(include_unconfirmed=True)
                 raw_pts     = robot.get_obstacles()
-                vt_str = f"vt=({vt[0]:.0f},{vt[1]:.0f})" if vt is not None else "vt=none"
+                vt_str    = f"vt=({vt[0]:.0f},{vt[1]:.0f})" if vt is not None else "vt=none"
+                pose_src  = "fused" if robot.has_fused_pose() else "odom"
+                gps_str   = "GPS:on" if robot.is_gps_active() else "GPS:off"
                 remaining = ((LAPF_GOAL_X_MM - x) ** 2 + (LAPF_GOAL_Y_MM - y) ** 2) ** 0.5
-                print(f"[LAPF_SEG2]  odom=({x:.0f},{y:.0f}) θ={theta:.1f}°"
-                      f"  rem={remaining:.0f} mm  {vt_str}"
+                print(f"[LAPF_SEG2]  pose=({x:.0f},{y:.0f}) [{pose_src}] θ={theta:.1f}°"
+                      f"  rem={remaining:.0f} mm  {vt_str}  {gps_str}"
                       f"  raw={len(raw_pts)}  unc={len(unconfirmed)}  conf={len(confirmed)}")
                 last_status_at = now
             if lapf_handle is not None and lapf_handle.is_finished():
