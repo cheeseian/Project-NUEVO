@@ -264,7 +264,7 @@ function clearedRobotState(connection: ConnectionData | null, serialConnected: b
 }
 
 // Trail history cap — keeps memory bounded without losing the full session path.
-const MAX_TRAIL_PTS = 5000
+const MAX_TRAIL_PTS = 20000
 
 // Lidar rolling window — how many consecutive frames to overlay on the canvas.
 // Increase to fill in gaps when the scanner misses angles; decrease for less lag.
