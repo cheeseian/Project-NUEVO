@@ -48,12 +48,12 @@ LAPF_VELOCITY_MM_S   = 120.0
 LAPF_TOLERANCE_MM    = 100.0
 LAPF_MAX_ANGULAR     = 1.2
 LAPF_LEASH_MM        = 250.0
-LAPF_HALF_ANGLE_DEG  = 120.0
+LAPF_HALF_ANGLE_DEG  = 85.0    # <90° keeps virtual target in forward hemisphere; was 120° (caused backward spin)
 LAPF_REPULSION_MM    = 430.0   # cone surface → start of gradient (inflation + 215mm reaction zone)
 LAPF_INFLATION_MM    = 215.0   # robot half-width (165) + 50mm safety margin
 LAPF_TARGET_SPD_MM_S = 200.0
-LAPF_REPULSION_GAIN  = 400.0   # tune up/down with real cones
-LAPF_ATTRACTION_GAIN = 1.0
+LAPF_REPULSION_GAIN  = 200.0   # 6 simultaneous cones × 5.3 each was 32× attraction; halved to reduce stack-up
+LAPF_ATTRACTION_GAIN = 3.0     # was 1.0; 3× boost to help pull through initial all-ahead-cone phase
 LAPF_EMA_ALPHA       = 0.35
 
 STATUS_INTERVAL_S    = 0.5

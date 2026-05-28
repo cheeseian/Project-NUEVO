@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import importlib
+import os
 import signal
 import threading
 
@@ -49,8 +51,9 @@ def main(args=None) -> None:
     signal.signal(signal.SIGTERM, _raise_keyboard_interrupt)
 
     try:
-        from robot.main import run
-        run(node.robot)
+        fsm_module_name = os.environ.get("ROBOT_FSM_MODULE", "robot.main")
+        fsm_module = importlib.import_module(fsm_module_name)
+        fsm_module.run(node.robot)
     except KeyboardInterrupt:
         _safe_log(node, "info", "robot node interrupted; shutting down")
     finally:
