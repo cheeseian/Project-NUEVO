@@ -70,27 +70,27 @@ PAN_CHANNEL    = 16
 PAN_CENTER_DEG = 90.0
 PAN_MIN_DEG    = 0.0
 PAN_MAX_DEG    = 180.0
-PAN_SCAN_STEP  = 0.48   # deg per tick while scanning (no target)
+PAN_SCAN_STEP  = 2.0    # deg per tick while scanning (no target)
 
 # ---------------------------------------------------------------------------
 # Step-based tracking — one fixed step every STEP_INTERVAL_S
 # ---------------------------------------------------------------------------
 
-STEP_INTERVAL_S  = 0.12  # seconds between correction steps
-COARSE_THRESH_PX = 200   # px — use coarse step when error exceeds this
+STEP_INTERVAL_S  = 0.16  # seconds between correction steps
+COARSE_THRESH_PX = 170   # px — use coarse step when error exceeds this
 
-PAN_STEP_COARSE  = 4.0   # deg per step when error > COARSE_THRESH_PX
-PAN_STEP_FINE    = 0.2   # deg per step when error <= COARSE_THRESH_PX
-CENTER_TOL_PX    = 4    # px — no step taken when within this of centre
-AIM_OFFSET_PX    = 0   # aim this many px below the detected target centre
+PAN_STEP_COARSE  = 5.0   # deg per step when error > COARSE_THRESH_PX
+PAN_STEP_FINE    = 0.16    # deg per step when error <= COARSE_THRESH_PX
+CENTER_TOL_PX    = 3   # px — no step taken when within this of centre
+AIM_OFFSET_PX    = 10   # aim this many px below the detected target centre
 
 PITCH_MOTOR = 3
 PITCH_PWM   = 200
 
-PITCH_STEP_INTERVAL_S  = 0.7   # dead time between pulses
-PITCH_COARSE_THRESH_PX = 400    # px — above this use coarse pulse
-PITCH_PULSE_COARSE_S   = 0.12  # pulse on-time when far from centre
-PITCH_PULSE_FINE_S     = 0.02  # pulse on-time when within PITCH_COARSE_THRESH_PX
+PITCH_STEP_INTERVAL_S  = 0.8   # dead time between pulses
+PITCH_COARSE_THRESH_PX = 50    # px — above this use coarse pulse
+PITCH_PULSE_COARSE_S   = 0.18  # pulse on-time when far from centre
+PITCH_PULSE_FINE_S     = 0.016  # pulse on-time when within PITCH_COARSE_THRESH_PX
 
 # ---------------------------------------------------------------------------
 # Image brightness/contrast boost applied to every frame
@@ -289,6 +289,7 @@ def run(robot: Robot) -> None:
     last_shot_at  = -SHOOT_COOLDOWN_S
     shooting      = False
     locked_pos: tuple[int, int] | None = None
+    centred_since: float | None = None
 
     robot.set_servo(PAN_CHANNEL, pan_deg)
     robot.set_servo(SHOOT_CHANNEL, SHOOT_A_DEG)
@@ -337,20 +338,26 @@ def run(robot: Robot) -> None:
                 pan_err   = smooth_tx - (_CAM_WIDTH  // 2)
                 pitch_err = (smooth_ty + AIM_OFFSET_PX) - (_CAM_HEIGHT // 2)
 
-                # Shoot when centred — fires servo 15 in a background thread
+                # Shoot when centred for >= 1 s — fires servo 15 in a background thread
                 centred = abs(pan_err) <= CENTER_TOL_PX and abs(pitch_err) <= CENTER_TOL_PX
-                if centred and not shooting and now - last_shot_at >= SHOOT_COOLDOWN_S:
-                    shooting     = True
-                    last_shot_at = now
-                    print("[shoot] firing CH15")
-                    def _shoot():
-                        nonlocal shooting
-                        robot.set_servo(SHOOT_CHANNEL, SHOOT_B_DEG)
-                        time.sleep(SHOOT_SETTLE_S)
-                        robot.set_servo(SHOOT_CHANNEL, SHOOT_A_DEG)
-                        shooting = False
-                        print("[shoot] reset CH15")
-                    threading.Thread(target=_shoot, daemon=True).start()
+                if centred and not shooting:
+                    if centred_since is None:
+                        centred_since = now
+                    elif now - centred_since >= 1.0 and now - last_shot_at >= SHOOT_COOLDOWN_S:
+                        centred_since = None
+                        shooting      = True
+                        last_shot_at  = now
+                        print("[shoot] firing CH15")
+                        def _shoot():
+                            nonlocal shooting
+                            robot.set_servo(SHOOT_CHANNEL, SHOOT_B_DEG)
+                            time.sleep(SHOOT_SETTLE_S)
+                            robot.set_servo(SHOOT_CHANNEL, SHOOT_A_DEG)
+                            shooting = False
+                            print("[shoot] reset CH15")
+                        threading.Thread(target=_shoot, daemon=True).start()
+                else:
+                    centred_since = None
 
                 # Pan: step-based — hold pan still while shooting
                 if not shooting and now - last_step_at >= STEP_INTERVAL_S:
@@ -363,8 +370,8 @@ def run(robot: Robot) -> None:
                         robot.set_servo(PAN_CHANNEL, pan_deg)
                         last_step_at = now
 
-                # Pitch: pulse-based — short burst then dead time
-                if abs(pitch_err) > CENTER_TOL_PX:
+                # Pitch: pulse-based — hold still while shooting
+                if not shooting and abs(pitch_err) > CENTER_TOL_PX:
                     if now < pitch_pulse_end_at:
                         pitch_pwm = int(math.copysign(PITCH_PWM, pitch_err))
                     elif now - last_pitch_step_at >= PITCH_STEP_INTERVAL_S:
