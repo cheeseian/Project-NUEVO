@@ -85,4 +85,6 @@ sleep 1
 
 # ── 6. Start robot FSM ───────────────────────────────────────────────────────
 echo "[6/6] starting robot node..."
-_exec "$ROS_SETUP && ros2 run robot robot"
+FSM_ENV=""
+[ -n "$ROBOT_FSM_MODULE" ] && FSM_ENV="ROBOT_FSM_MODULE=$ROBOT_FSM_MODULE"
+_exec "$ROS_SETUP && $FSM_ENV ros2 run robot robot"

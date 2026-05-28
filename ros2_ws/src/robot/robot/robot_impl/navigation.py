@@ -713,6 +713,7 @@ class NavigationMixin:
         inflation_margin_mm: float | None = None,
         leash_half_angle_deg: float | None = None,
         timeout: float = None,
+        include_unconfirmed_obstacles: bool = False,
     ) -> MotionHandle:
         """
         Navigate to one goal using a leashed APF virtual target.
@@ -766,6 +767,7 @@ class NavigationMixin:
                 force_ema_alpha,
                 inflation_margin_mm,
                 leash_half_angle_deg,
+                include_unconfirmed_obstacles=include_unconfirmed_obstacles,
             )
 
         return self._start_nav(target, blocking, timeout)
@@ -1049,6 +1051,7 @@ class NavigationMixin:
         inflation_margin_mm: float,
         leash_half_angle_deg: float,
         update_hz: float = float(DEFAULT_NAV_HZ),
+        include_unconfirmed_obstacles: bool = False,
     ) -> None:
         from robot.path_planner import LeashedAPFPlanner
 
@@ -1089,6 +1092,7 @@ class NavigationMixin:
                 pose_mm,
                 fetch_radius_mm,
                 int(self.LAPF_MAX_PLANNER_TRACKS),
+                include_unconfirmed=include_unconfirmed_obstacles,
             )
 
             linear_mm, angular_rad_s = planner.navigate_to_goal(
@@ -1226,9 +1230,10 @@ class NavigationMixin:
         pose_mm: tuple[float, float, float],
         max_distance_mm: float,
         max_count: int,
+        include_unconfirmed: bool = False,
     ) -> np.ndarray:
         x_mm, y_mm, _theta_rad = pose_mm
-        tracks = self.get_obstacle_tracks(include_unconfirmed=False)
+        tracks = self.get_obstacle_tracks(include_unconfirmed=include_unconfirmed)
         if not tracks:
             return np.empty((0, 3), dtype=float)
 

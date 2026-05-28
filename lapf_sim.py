@@ -2,9 +2,9 @@
 """
 LAPF Seg2 Corridor Simulation
 ==============================
-Simulates the robot navigating from (1525, 350) to (1525, 3350) with 3 cones
-placed to force a zig-zag path.  Uses the real LeashedAPFPlanner from
-path_planner.py so the numbers match the actual robot.
+Simulates the robot navigating from (1525, 350) to (1525, 3350) with the
+actual map cone layout.  Uses the real LeashedAPFPlanner from path_planner.py
+so the numbers match the actual robot.
 
 Usage:
     python3 lapf_sim.py [options]
@@ -61,20 +61,26 @@ DEFAULTS = dict(
     max_steps       = 8000,
 )
 
-# ── 3 cones that force a zig-zag through the corridor ────────────────────────
-# Corridor centred at x=1525.  Robot half-width ~165 mm + 50 mm margin = 215 mm.
-# Each cone blocks roughly half the corridor, forcing the robot to weave.
-# Place them left-right-left so the nominal path snakes three times.
-#
-#   y=2800  x=1200  ●           (left wall)
-#   y=1850           ●  x=1900  (right wall)
-#   y=1000  x=1200  ●           (left wall)
-#
-# Change these to experiment with different corridor geometries.
+# ── Actual map cone layout ────────────────────────────────────────────────────
+# Zig-zag cones (force weave through centre):
+#   y=1000  x=1200  ●           (left)
+#   y=1850           ●  x=1900  (right)
+#   y=2800  x=1200  ●           (left)
+# Side wall cones (bound the corridor on both sides):
+#   left wall:   (1000,500), (1000,1500), (1000,2000)
+#   right wall:  (2200,500), (2200,1000), (2200,2500)
 CONES = [
-    (1200, 1000),   # left, lower third
-    (1900, 1850),   # right, middle
-    (1200, 2800),   # left, upper third
+    # zig-zag obstacles
+    (1300, 1000),
+    (1800, 1850),
+    (1200, 2500),
+    # left wall
+    (1000, 1500),
+    (1000, 2000),
+    # right wall
+
+    (2200, 1000),
+    (2200, 2500),
 ]
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -244,7 +250,9 @@ def _leash_local_angle(pose: tuple, vt: tuple) -> float:
     return math.atan2(local_y, local_x)
 
 
-def print_summary(trajectory: list, vt_history: list, force_history: list, p: dict) -> None:
+def print_summary(trajectory: list, vt_history: list, force_history: list, p: dict, cones: list = None) -> None:
+    if cones is None:
+        cones = CONES
     print(f"\n{'='*80}")
     print("SUMMARY")
     print(f"{'='*80}")
@@ -264,9 +272,10 @@ def print_summary(trajectory: list, vt_history: list, force_history: list, p: di
 
     # Nearest-cone approach distances
     print(f"\n  Cone closest approach:")
-    for i, (cx, cy) in enumerate(CONES):
+    for i, (cx, cy) in enumerate(cones):
         min_d = min(math.hypot(pt[0]-cx, pt[1]-cy) for pt in trajectory)
-        print(f"    Cone {i+1} ({cx:.0f},{cy:.0f}): {min_d:.0f} mm")
+        side = "L" if cx < START[0] else "R"
+        print(f"    C{i+1} ({cx:.0f},{cy:.0f}) [{side}]: {min_d:.0f} mm")
 
 
 def plot(trajectory: list, vt_history: list, cones: list, p: dict) -> None:
@@ -384,7 +393,7 @@ def main() -> None:
     print(f"  Goal:            ({GOAL[0]:.0f}, {GOAL[1]:.0f})")
     print(f"  Straight-line:   {math.hypot(GOAL[0]-START[0], GOAL[1]-START[1]):.0f} mm")
     print()
-    print(f"  Cone layout (3 cones, zig-zag):")
+    print(f"  Cone layout ({len(CONES)} cones):")
     for i, (cx, cy) in enumerate(CONES):
         side = "LEFT" if cx < START[0] else "RIGHT"
         print(f"    C{i+1}  ({cx}, {cy})  {side}")

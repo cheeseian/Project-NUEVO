@@ -32,10 +32,10 @@ LEFT_WHEEL_DIR_INVERTED = False
 RIGHT_WHEEL_MOTOR = Motor.DC_M2
 RIGHT_WHEEL_DIR_INVERTED = True
 
-LIDAR_MOUNT_X_MM = -100.0   # LiDAR at front centre: 165 mm forward of wheel-axle midpoint (-X = forward)
+LIDAR_MOUNT_X_MM = 0.0   # LiDAR at front centre: 165 mm forward of wheel-axle midpoint (-X = forward)
 LIDAR_MOUNT_Y_MM = 0.0
-LIDAR_MOUNT_THETA_DEG = 0.0
-LIDAR_RANGE_MIN_MM = 150.0
+LIDAR_MOUNT_THETA_DEG = 180.0
+LIDAR_RANGE_MIN_MM = 100.0
 LIDAR_RANGE_MAX_MM = 6000.0
 LIDAR_FOV_DEG = (-180.0, 180.0)
 
