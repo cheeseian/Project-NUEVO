@@ -195,7 +195,37 @@ def run(robot: Robot) -> None:
 
 
 def _run(robot: Robot) -> None:
-    # Set RUNNING first — firmware must be running before it accepts odometry params
+    # Firmware is in IDLE (run_robot.sh sent RESET but NOT START).
+    # SYS_ODOM_PARAM_SET is only accepted in IDLE state (firmware allowConfig gate).
+    # Set params first, then transition to RUNNING.
+
+    configure_robot(robot)
+
+    # Mandatory confirmation loop — must get firmware echo before going to RUNNING.
+    for _attempt in range(5):
+        ok = robot.set_odometry_parameters(
+            wheel_diameter=WHEEL_DIAMETER,
+            wheel_base=WHEEL_BASE,
+            initial_theta_deg=INITIAL_THETA_DEG,
+            left_motor_id=LEFT_WHEEL_MOTOR,
+            left_motor_dir_inverted=LEFT_WHEEL_DIR_INVERTED,
+            right_motor_id=RIGHT_WHEEL_MOTOR,
+            right_motor_dir_inverted=RIGHT_WHEEL_DIR_INVERTED,
+            timeout=2.0,
+        )
+        if ok:
+            p = robot.get_odometry_parameters()
+            print(f"[FSM] odom params confirmed (attempt {_attempt + 1}): "
+                  f"L=M{p['left_motor_number']} inv={p['left_motor_dir_inverted']}  "
+                  f"R=M{p['right_motor_number']} inv={p['right_motor_dir_inverted']}")
+            break
+        print(f"[FSM] odom params not confirmed (attempt {_attempt + 1}), retrying…")
+        time.sleep(0.2)
+    else:
+        print("[FSM] FATAL: odom params never confirmed — aborting.")
+        return
+
+    # Transition firmware IDLE → RUNNING.
     for attempt in range(5):
         ok = robot.set_state(FirmwareState.RUNNING, timeout=10.0)
         if ok:
@@ -206,10 +236,17 @@ def _run(robot: Robot) -> None:
     else:
         print("[FSM] WARNING: could not confirm RUNNING state — continuing anyway")
 
-    configure_robot(robot)
+    time.sleep(0.5)          # let firmware stabilise before odometry reset
     robot.reset_odometry()
     robot.wait_for_odometry_reset(timeout=3.0)
-    print("[FSM] odometry reset confirmed")
+    x, y, theta = robot.get_pose()
+    print(f"[FSM] odometry reset confirmed  pose=({x:.0f},{y:.0f}) θ={theta:.1f}°")
+    if abs(theta - INITIAL_THETA_DEG) > 5.0:
+        print(f"[FSM] WARNING: theta={theta:.1f}° expected {INITIAL_THETA_DEG}° — resetting again")
+        robot.reset_odometry()
+        robot.wait_for_odometry_reset(timeout=3.0)
+        x, y, theta = robot.get_pose()
+        print(f"[FSM] re-reset  pose=({x:.0f},{y:.0f}) θ={theta:.1f}°")
 
     period = 1.0 / float(DEFAULT_FSM_HZ)
     next_tick = time.monotonic()
@@ -252,6 +289,8 @@ def _run(robot: Robot) -> None:
                     print("[FSM] IDLE → PP_SEG1")
                     robot.reset_odometry()
                     robot.wait_for_odometry_reset(timeout=2.0)
+                    x, y, theta = robot.get_pose()
+                    print(f"[FSM] start reset  pose=({x:.0f},{y:.0f}) θ={theta:.1f}°")
                     init_pp(robot, PATH_SEG1_CTRL)
                     show_moving_leds(robot)
                     btn3_hold_count = 0
