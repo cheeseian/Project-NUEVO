@@ -202,9 +202,11 @@ class SensorsMixin:
             fov_min = self._lidar_fov_min_rad
             fov_max = self._lidar_fov_max_rad
 
-        # Step 1 — polar → Cartesian in lidar sensor frame (metres → mm)
-        # Negate ly: lidar is mounted upside-down (flip_x_axis=true in driver reverses
-        # scan direction, which mirrors left/right; negating ly corrects this).
+        # Step 1 — polar → Cartesian in lidar sensor frame (metres → mm).
+        # flip_x_axis=true in the driver gives ros_angle = -lidar_angle, which reverses
+        # the angular convention (CW positive). Negating ly restores the correct sign
+        # for the Y axis. Step 2 (mount theta=180°) corrects for the lidar being
+        # physically mounted backward-facing.
         lx =  (ranges * np.cos(angles)) * 1000.0
         ly = -(ranges * np.sin(angles)) * 1000.0
 
